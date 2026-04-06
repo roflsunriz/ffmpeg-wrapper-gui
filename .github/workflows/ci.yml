@@ -16,7 +16,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
       - name: Install build dependencies
         run: |
@@ -35,4 +34,3 @@ jobs:
           name: ffmpeg-wrapper-gui-windows
           path: dist/ffmpeg-wrapper-gui.exe
           if-no-files-found: error
-
