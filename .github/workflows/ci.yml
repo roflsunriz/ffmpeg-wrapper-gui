@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller tkinterdnd2
+
+      - name: Syntax check
+        run: python -m py_compile .\ffmpeg_wrapper_gui.pyw
+
+      - name: Build executable
+        run: pyinstaller .\ffmpeg-wrapper-gui.spec --noconfirm --clean
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-wrapper-gui-windows
+          path: dist/ffmpeg-wrapper-gui.exe
+          if-no-files-found: error
+
