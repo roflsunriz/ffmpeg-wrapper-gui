@@ -4,7 +4,9 @@ import json
 import os
 import queue
 import re
+import shutil
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -119,6 +121,7 @@ class App:
         self.pause_event = threading.Event()
         self.current_process: subprocess.Popen[str] | None = None
         self.remaining_queue: list[Path] = []
+        self._tool_resolution_logged: set[str] = set()
 
         self.mode_var = StringVar(value="audio_convert")
         self.output_dir_var = StringVar(value="")
@@ -490,10 +493,11 @@ class App:
             i += 1
 
     def _build_ffmpeg_command(self, input_file: Path, output_file: Path) -> list[str]:
+        ffmpeg_cmd = self._resolve_tool_command("ffmpeg")
         mode = self.mode_var.get()
         if mode == "video_compress":
             return [
-                "ffmpeg",
+                ffmpeg_cmd,
                 "-y",
                 "-i",
                 str(input_file),
@@ -519,7 +523,7 @@ class App:
                 str(output_file),
             ]
 
-        cmd = ["ffmpeg", "-y", "-i", str(input_file)]
+        cmd = [ffmpeg_cmd, "-y", "-i", str(input_file)]
         if mode == "video_extract_audio":
             cmd.extend(["-vn"])
         cmd.extend(["-af", f"atempo={self.playback_speed_var.get().strip()}"])
@@ -531,8 +535,9 @@ class App:
         return cmd
 
     def _probe_duration(self, input_file: Path) -> float:
+        ffprobe_cmd = self._resolve_tool_command("ffprobe")
         cmd = [
-            "ffprobe",
+            ffprobe_cmd,
             "-v",
             "error",
             "-show_entries",
@@ -555,6 +560,51 @@ class App:
             return float(value) if value else 0.0
         except Exception:
             return 0.0
+
+    def _resolve_tool_command(self, tool_name: str) -> str:
+        candidates = self._tool_candidates(tool_name)
+        for candidate in candidates:
+            candidate_path = Path(candidate)
+            if candidate_path.is_file():
+                resolved = str(candidate_path)
+                self._log_tool_resolution(tool_name, resolved)
+                return resolved
+
+        path_resolved = shutil.which(tool_name)
+        if path_resolved:
+            self._log_tool_resolution(tool_name, path_resolved)
+            return path_resolved
+
+        return tool_name
+
+    def _tool_candidates(self, tool_name: str) -> list[Path]:
+        executable_name = f"{tool_name}.exe" if os.name == "nt" else tool_name
+        base_dirs: list[Path] = []
+
+        if getattr(sys, "frozen", False):
+            base_dirs.append(Path(sys.executable).resolve().parent)
+
+        if "__file__" in globals():
+            base_dirs.append(Path(__file__).resolve().parent)
+
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            base_dirs.append(Path(meipass))
+
+        candidates: list[Path] = []
+        seen: set[Path] = set()
+        for base_dir in base_dirs:
+            for candidate in (base_dir / executable_name, base_dir / "resources" / executable_name):
+                if candidate not in seen:
+                    seen.add(candidate)
+                    candidates.append(candidate)
+        return candidates
+
+    def _log_tool_resolution(self, tool_name: str, resolved: str) -> None:
+        if tool_name in self._tool_resolution_logged:
+            return
+        self._tool_resolution_logged.add(tool_name)
+        self._log(f"{tool_name} を使用します: {resolved}")
 
     def _run_ffmpeg_with_progress(
         self, cmd: list[str], input_file: Path, duration_sec: float, index: int, total: int
