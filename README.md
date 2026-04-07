@@ -27,6 +27,16 @@
 
 つまり、配布版をそのまま使う場合は、`ffmpeg.exe` と `ffprobe.exe` を exe と同じフォルダに置くか、`PATH` に通してください。
 
+### 依存関係の導入
+
+`setup-scripts/install-dependencies.ps1` を使うと、`winget` 経由で FFmpeg をまとめて導入できます。
+
+```powershell
+.\setup-scripts\install-dependencies.ps1
+```
+
+このスクリプトは `Gyan.FFMpeg` をインストールします。`winget` が使える環境で実行してください。
+
 ## 使い方
 
 1. 入力ファイルを追加します。
@@ -50,4 +60,3 @@ pyinstaller .\ffmpeg-wrapper-gui.spec --noconfirm --clean
 
 - メイン実装: [`ffmpeg_wrapper_gui.pyw`](./ffmpeg_wrapper_gui.pyw)
 - PyInstaller 設定: [`ffmpeg-wrapper-gui.spec`](./ffmpeg-wrapper-gui.spec)
-
