@@ -24,7 +24,14 @@ except Exception:
     TkinterDnD = None
 
 
-SETTINGS_PATH = Path(__file__).resolve().parent / "ffmpeg-wrapper-settings.json"
+def get_app_base_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+APP_BASE_DIR = get_app_base_dir()
+SETTINGS_PATH = APP_BASE_DIR / "ffmpeg-wrapper-settings.json"
 
 AUDIO_FORMATS = ("mp3", "m4a", "flac", "wav", "ogg", "opus")
 AUDIO_CODECS = ("aac", "libmp3lame", "libopus", "pcm_s16le")
