@@ -30,11 +30,35 @@ AUDIO_FORMATS = ("mp3", "m4a", "flac", "wav", "ogg", "opus")
 AUDIO_CODECS = ("aac", "libmp3lame", "libopus", "pcm_s16le")
 AUDIO_BITRATES = ("64k", "96k", "128k", "192k", "256k")
 VIDEO_FORMATS = ("mp4", "mkv", "mov", "webm")
-VIDEO_CODECS = ("libx264", "libx265", "mpeg4", "libvpx-vp9")
+VIDEO_CODECS = ("h264", "h265", "mpeg4", "vp9")
 VIDEO_AUDIO_CODECS = ("aac", "libmp3lame", "libopus", "vorbis")
+VIDEO_CODEC_LABELS = {
+    "h264": "H.264",
+    "h265": "H.265 / HEVC",
+    "mpeg4": "MPEG-4 Part 2",
+    "vp9": "VP9",
+}
+VIDEO_ENCODER_OPTIONS: dict[str, tuple[str, ...]] = {
+    "h264": ("libx264", "h264_nvenc", "h264_qsv", "h264_amf"),
+    "h265": ("libx265", "hevc_nvenc", "hevc_qsv", "hevc_amf"),
+    "mpeg4": ("mpeg4",),
+    "vp9": ("libvpx-vp9",),
+}
+VIDEO_ENCODER_DESCRIPTIONS = {
+    "libx264": "ソフトウェアエンコードです。処理は比較的遅めですが、H.264では品質と互換性のバランスが良好です。",
+    "h264_nvenc": "NVIDIA GPU のハードウェアアクセラレーションを利用できます。高速ですが、同等ビットレートでは libx264 より画質が落ちやすいです。",
+    "h264_qsv": "Intel Quick Sync Video を利用できます。高速で消費電力も抑えやすい一方、画質傾向は libx264 よりやや不利です。",
+    "h264_amf": "AMD GPU のハードウェアアクセラレーションを利用できます。高速ですが、画質調整の自由度はソフトウェアエンコードより低めです。",
+    "libx265": "ソフトウェアエンコードです。高圧縮ですが処理負荷が高く、速度は遅めです。容量重視の HEVC 向けです。",
+    "hevc_nvenc": "NVIDIA GPU の HEVC ハードウェアエンコードです。高速ですが、同条件では libx265 より細部が甘くなりやすいです。",
+    "hevc_qsv": "Intel Quick Sync Video の HEVC エンコードです。速度重視ですが、画質は libx265 より控えめです。",
+    "hevc_amf": "AMD GPU の HEVC ハードウェアエンコードです。高速ですが、圧縮効率と画質は libx265 に及ばないことがあります。",
+    "mpeg4": "旧式のソフトウェアエンコードです。互換性重視向けですが、圧縮効率は H.264/H.265 よりかなり劣ります。",
+    "libvpx-vp9": "VP9 のソフトウェアエンコードです。圧縮効率は高い一方、処理時間は長くなりやすいです。",
+}
 VIDEO_FORMAT_COMPATIBILITY: dict[str, dict[str, tuple[str, ...]]] = {
     "mp4": {
-        "video_codecs": ("libx264", "libx265", "mpeg4"),
+        "video_codecs": ("h264", "h265", "mpeg4"),
         "audio_codecs": ("aac", "libmp3lame"),
     },
     "mkv": {
@@ -42,11 +66,11 @@ VIDEO_FORMAT_COMPATIBILITY: dict[str, dict[str, tuple[str, ...]]] = {
         "audio_codecs": VIDEO_AUDIO_CODECS,
     },
     "mov": {
-        "video_codecs": ("libx264", "libx265", "mpeg4"),
+        "video_codecs": ("h264", "h265", "mpeg4"),
         "audio_codecs": ("aac", "libmp3lame"),
     },
     "webm": {
-        "video_codecs": ("libvpx-vp9",),
+        "video_codecs": ("vp9",),
         "audio_codecs": ("libopus", "vorbis"),
     },
 }
@@ -143,6 +167,7 @@ class App:
         self.current_process: subprocess.Popen[str] | None = None
         self.remaining_queue: list[Path] = []
         self._tool_resolution_logged: set[str] = set()
+        self.available_ffmpeg_encoders: set[str] = set()
 
         self.mode_var = StringVar(value="audio_convert")
         self.output_dir_var = StringVar(value="")
@@ -158,13 +183,16 @@ class App:
         self.fps_var = StringVar(value=PRESETS["Standard"]["fps"])
         self.crf_var = StringVar(value=PRESETS["Standard"]["crf"])
         self.video_format_var = StringVar(value="mp4")
-        self.video_codec_var = StringVar(value="libx264")
+        self.video_codec_var = StringVar(value="h264")
+        self.video_encoder_var = StringVar(value="libx264")
         self.video_audio_codec_var = StringVar(value="aac")
         self.video_audio_bitrate_var = StringVar(value=PRESETS["Standard"]["audio_bitrate"])
+        self.video_encoder_description_var = StringVar(value="")
         self.dnd_status_var = StringVar(value="D&D: 初期化中")
         self.progress_text_var = StringVar(value="待機中")
 
         self.overwrite_resolver = OverwriteResolver(root)
+        self.available_ffmpeg_encoders = self._detect_ffmpeg_encoders()
         self._build_ui()
         self._bind_events()
         self._load_settings()
@@ -258,13 +286,24 @@ class App:
         ttk.Entry(self.video_frame, textvariable=self.fps_var, width=10).grid(row=2, column=3, sticky="w", padx=6, pady=(6, 0))
         ttk.Label(self.video_frame, text="CRF").grid(row=3, column=0, sticky="w", pady=(6, 0))
         ttk.Entry(self.video_frame, textvariable=self.crf_var, width=10).grid(row=3, column=1, sticky="w", padx=6, pady=(6, 0))
-        ttk.Label(self.video_frame, text="オーディオコーデック").grid(row=3, column=2, sticky="w", pady=(6, 0))
+        ttk.Label(self.video_frame, text="エンコーダ").grid(row=3, column=2, sticky="w", pady=(6, 0))
+        self.video_encoder_combo = ttk.Combobox(
+            self.video_frame, state="readonly", values=(), textvariable=self.video_encoder_var, width=14
+        )
+        self.video_encoder_combo.grid(row=3, column=3, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="オーディオコーデック").grid(row=4, column=0, sticky="w", pady=(6, 0))
         self.video_audio_codec_combo = ttk.Combobox(
             self.video_frame, state="readonly", values=VIDEO_AUDIO_CODECS, textvariable=self.video_audio_codec_var, width=14
         )
-        self.video_audio_codec_combo.grid(row=3, column=3, sticky="w", padx=6, pady=(6, 0))
-        ttk.Label(self.video_frame, text="Audio Bitrate").grid(row=4, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(self.video_frame, textvariable=self.video_audio_bitrate_var, width=12).grid(row=4, column=1, sticky="w", padx=6, pady=(6, 0))
+        self.video_audio_codec_combo.grid(row=4, column=1, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="Audio Bitrate").grid(row=4, column=2, sticky="w", pady=(6, 0))
+        ttk.Entry(self.video_frame, textvariable=self.video_audio_bitrate_var, width=12).grid(row=4, column=3, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(
+            self.video_frame,
+            textvariable=self.video_encoder_description_var,
+            justify=LEFT,
+            wraplength=720,
+        ).grid(row=5, column=0, columnspan=4, sticky="w", pady=(8, 0))
 
         action_frame = ttk.Frame(wrapper)
         action_frame.pack(fill=X, pady=(0, 8))
@@ -290,6 +329,8 @@ class App:
         self.preset_combo.bind("<<ComboboxSelected>>", lambda _e: self._apply_preset())
         self.name_policy_combo.bind("<<ComboboxSelected>>", lambda _e: self._toggle_mode_sections())
         self.video_format_combo.bind("<<ComboboxSelected>>", lambda _e: self._sync_video_codec_options())
+        self.video_codec_combo.bind("<<ComboboxSelected>>", lambda _e: self._sync_video_encoder_options())
+        self.video_encoder_combo.bind("<<ComboboxSelected>>", lambda _e: self._update_video_encoder_description())
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if HAS_DND and TkinterDnD is not None and DND_FILES is not None:
@@ -337,6 +378,28 @@ class App:
             self.video_codec_var.set(video_codecs[0])
         if self.video_audio_codec_var.get().strip() not in audio_codecs:
             self.video_audio_codec_var.set(audio_codecs[0])
+        self._sync_video_encoder_options()
+
+    def _sync_video_encoder_options(self) -> None:
+        codec = self.video_codec_var.get().strip()
+        known_candidates = VIDEO_ENCODER_OPTIONS.get(codec, ())
+        available_candidates = tuple(encoder for encoder in known_candidates if self._is_encoder_available(encoder))
+        encoder_values = available_candidates or known_candidates
+
+        self.video_encoder_combo.configure(values=encoder_values)
+        if encoder_values and self.video_encoder_var.get().strip() not in encoder_values:
+            self.video_encoder_var.set(encoder_values[0])
+        self._update_video_encoder_description()
+
+    def _update_video_encoder_description(self) -> None:
+        encoder = self.video_encoder_var.get().strip()
+        if not encoder:
+            self.video_encoder_description_var.set("")
+            return
+        description = VIDEO_ENCODER_DESCRIPTIONS.get(encoder, "このエンコーダの説明は未定義です。")
+        if self.available_ffmpeg_encoders and encoder not in self.available_ffmpeg_encoders:
+            description = f"{description} 現在の ffmpeg では利用できないため選択候補からは通常除外されます。"
+        self.video_encoder_description_var.set(description)
 
     def _add_files(self) -> None:
         paths = filedialog.askopenfilenames(title="入力ファイルを選択")
@@ -462,8 +525,13 @@ class App:
                 return False, "動画の出力形式が不正です。"
             if self.video_codec_var.get().strip() not in compatibility["video_codecs"]:
                 return False, "選択した出力形式では、そのビデオコーデックは使用できません。"
+            allowed_encoders = VIDEO_ENCODER_OPTIONS.get(self.video_codec_var.get().strip(), ())
+            if self.video_encoder_var.get().strip() not in allowed_encoders:
+                return False, "選択したビデオコーデックでは、そのエンコーダは使用できません。"
             if self.video_audio_codec_var.get().strip() not in compatibility["audio_codecs"]:
                 return False, "選択した出力形式では、そのオーディオコーデックは使用できません。"
+            if self.available_ffmpeg_encoders and self.video_encoder_var.get().strip() not in self.available_ffmpeg_encoders:
+                return False, "選択したエンコーダは現在の ffmpeg では利用できません。"
 
         if self.name_policy_var.get() == "custom_name":
             if len(self.file_list) != 1:
@@ -570,7 +638,7 @@ class App:
                 "-r",
                 self.fps_var.get().strip(),
                 "-c:v",
-                self.video_codec_var.get().strip(),
+                self.video_encoder_var.get().strip(),
                 "-crf",
                 self.crf_var.get().strip(),
                 "-preset",
@@ -625,6 +693,34 @@ class App:
             return float(value) if value else 0.0
         except Exception:
             return 0.0
+
+    def _detect_ffmpeg_encoders(self) -> set[str]:
+        ffmpeg_cmd = self._resolve_tool_command("ffmpeg")
+        cmd = [ffmpeg_cmd, "-hide_banner", "-encoders"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+                creationflags=WINDOWS_CREATE_NO_WINDOW,
+            )
+        except Exception:
+            return set()
+
+        encoders: set[str] = set()
+        for line in result.stdout.splitlines():
+            match = re.match(r"^\s*[A-Z\.]{6}\s+([0-9A-Za-z_\-]+)\s", line)
+            if match:
+                encoders.add(match.group(1))
+        return encoders
+
+    def _is_encoder_available(self, encoder_name: str) -> bool:
+        if not self.available_ffmpeg_encoders:
+            return True
+        return encoder_name in self.available_ffmpeg_encoders
 
     def _resolve_tool_command(self, tool_name: str) -> str:
         candidates = self._tool_candidates(tool_name)
@@ -803,6 +899,7 @@ class App:
             "crf": self.crf_var.get(),
             "video_format": self.video_format_var.get(),
             "video_codec": self.video_codec_var.get(),
+            "video_encoder": self.video_encoder_var.get(),
             "video_audio_codec": self.video_audio_codec_var.get(),
             "video_audio_bitrate": self.video_audio_bitrate_var.get(),
         }
@@ -847,7 +944,17 @@ class App:
         self.fps_var.set(loaded["fps"])
         self.crf_var.set(loaded["crf"])
         self.video_format_var.set(loaded["video_format"])
-        self.video_codec_var.set(loaded["video_codec"])
+        legacy_video_codec = loaded["video_codec"]
+        if legacy_video_codec in VIDEO_ENCODER_DESCRIPTIONS:
+            codec_from_encoder = next(
+                (codec for codec, encoders in VIDEO_ENCODER_OPTIONS.items() if legacy_video_codec in encoders),
+                "h264",
+            )
+            self.video_codec_var.set(codec_from_encoder)
+            self.video_encoder_var.set(legacy_video_codec)
+        else:
+            self.video_codec_var.set(legacy_video_codec)
+            self.video_encoder_var.set(loaded["video_encoder"])
         self.video_audio_codec_var.set(loaded["video_audio_codec"])
         self.video_audio_bitrate_var.set(loaded["video_audio_bitrate"])
         self._sync_video_codec_options()

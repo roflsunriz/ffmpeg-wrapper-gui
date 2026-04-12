@@ -1,3 +1,6 @@
 /build
 /dist
 /__pycache__
+
+# 設定ファイル
+ffmpeg-wrapper-settings.json
