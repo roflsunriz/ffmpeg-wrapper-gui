@@ -29,6 +29,27 @@ SETTINGS_PATH = Path(__file__).resolve().parent / "ffmpeg-wrapper-settings.json"
 AUDIO_FORMATS = ("mp3", "m4a", "flac", "wav", "ogg", "opus")
 AUDIO_CODECS = ("aac", "libmp3lame", "libopus", "pcm_s16le")
 AUDIO_BITRATES = ("64k", "96k", "128k", "192k", "256k")
+VIDEO_FORMATS = ("mp4", "mkv", "mov", "webm")
+VIDEO_CODECS = ("libx264", "libx265", "mpeg4", "libvpx-vp9")
+VIDEO_AUDIO_CODECS = ("aac", "libmp3lame", "libopus", "vorbis")
+VIDEO_FORMAT_COMPATIBILITY: dict[str, dict[str, tuple[str, ...]]] = {
+    "mp4": {
+        "video_codecs": ("libx264", "libx265", "mpeg4"),
+        "audio_codecs": ("aac", "libmp3lame"),
+    },
+    "mkv": {
+        "video_codecs": VIDEO_CODECS,
+        "audio_codecs": VIDEO_AUDIO_CODECS,
+    },
+    "mov": {
+        "video_codecs": ("libx264", "libx265", "mpeg4"),
+        "audio_codecs": ("aac", "libmp3lame"),
+    },
+    "webm": {
+        "video_codecs": ("libvpx-vp9",),
+        "audio_codecs": ("libopus", "vorbis"),
+    },
+}
 MODE_OPTIONS = ("audio_convert", "video_extract_audio", "video_compress")
 NAME_POLICY_OPTIONS = ("source_name", "source_name_with_suffix", "custom_name")
 PRESET_LABELS = (
@@ -136,6 +157,9 @@ class App:
         self.scale_var = StringVar(value=PRESETS["Standard"]["scale"])
         self.fps_var = StringVar(value=PRESETS["Standard"]["fps"])
         self.crf_var = StringVar(value=PRESETS["Standard"]["crf"])
+        self.video_format_var = StringVar(value="mp4")
+        self.video_codec_var = StringVar(value="libx264")
+        self.video_audio_codec_var = StringVar(value="aac")
         self.video_audio_bitrate_var = StringVar(value=PRESETS["Standard"]["audio_bitrate"])
         self.dnd_status_var = StringVar(value="D&D: 初期化中")
         self.progress_text_var = StringVar(value="待機中")
@@ -214,14 +238,33 @@ class App:
         ttk.Label(self.video_frame, text="プリセット").grid(row=0, column=0, sticky="w")
         self.preset_combo = ttk.Combobox(self.video_frame, state="readonly", values=PRESET_LABELS, textvariable=self.preset_var, width=16)
         self.preset_combo.grid(row=0, column=1, sticky="w", padx=6)
-        ttk.Label(self.video_frame, text="解像度(WxH)").grid(row=1, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(self.video_frame, textvariable=self.scale_var, width=16).grid(row=1, column=1, sticky="w", padx=6, pady=(6, 0))
-        ttk.Label(self.video_frame, text="FPS").grid(row=1, column=2, sticky="w", pady=(6, 0))
-        ttk.Entry(self.video_frame, textvariable=self.fps_var, width=10).grid(row=1, column=3, sticky="w", padx=6, pady=(6, 0))
-        ttk.Label(self.video_frame, text="CRF").grid(row=2, column=0, sticky="w", pady=(6, 0))
-        ttk.Entry(self.video_frame, textvariable=self.crf_var, width=10).grid(row=2, column=1, sticky="w", padx=6, pady=(6, 0))
-        ttk.Label(self.video_frame, text="Audio Bitrate").grid(row=2, column=2, sticky="w", pady=(6, 0))
-        ttk.Entry(self.video_frame, textvariable=self.video_audio_bitrate_var, width=12).grid(row=2, column=3, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="出力形式").grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.video_format_combo = ttk.Combobox(
+            self.video_frame, state="readonly", values=VIDEO_FORMATS, textvariable=self.video_format_var, width=12
+        )
+        self.video_format_combo.grid(
+            row=1, column=1, sticky="w", padx=6, pady=(6, 0)
+        )
+        ttk.Label(self.video_frame, text="ビデオコーデック").grid(row=1, column=2, sticky="w", pady=(6, 0))
+        self.video_codec_combo = ttk.Combobox(
+            self.video_frame, state="readonly", values=VIDEO_CODECS, textvariable=self.video_codec_var, width=14
+        )
+        self.video_codec_combo.grid(
+            row=1, column=3, sticky="w", padx=6, pady=(6, 0)
+        )
+        ttk.Label(self.video_frame, text="解像度(W:H)").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ttk.Entry(self.video_frame, textvariable=self.scale_var, width=16).grid(row=2, column=1, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="FPS").grid(row=2, column=2, sticky="w", pady=(6, 0))
+        ttk.Entry(self.video_frame, textvariable=self.fps_var, width=10).grid(row=2, column=3, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="CRF").grid(row=3, column=0, sticky="w", pady=(6, 0))
+        ttk.Entry(self.video_frame, textvariable=self.crf_var, width=10).grid(row=3, column=1, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="オーディオコーデック").grid(row=3, column=2, sticky="w", pady=(6, 0))
+        self.video_audio_codec_combo = ttk.Combobox(
+            self.video_frame, state="readonly", values=VIDEO_AUDIO_CODECS, textvariable=self.video_audio_codec_var, width=14
+        )
+        self.video_audio_codec_combo.grid(row=3, column=3, sticky="w", padx=6, pady=(6, 0))
+        ttk.Label(self.video_frame, text="Audio Bitrate").grid(row=4, column=0, sticky="w", pady=(6, 0))
+        ttk.Entry(self.video_frame, textvariable=self.video_audio_bitrate_var, width=12).grid(row=4, column=1, sticky="w", padx=6, pady=(6, 0))
 
         action_frame = ttk.Frame(wrapper)
         action_frame.pack(fill=X, pady=(0, 8))
@@ -246,6 +289,7 @@ class App:
     def _bind_events(self) -> None:
         self.preset_combo.bind("<<ComboboxSelected>>", lambda _e: self._apply_preset())
         self.name_policy_combo.bind("<<ComboboxSelected>>", lambda _e: self._toggle_mode_sections())
+        self.video_format_combo.bind("<<ComboboxSelected>>", lambda _e: self._sync_video_codec_options())
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if HAS_DND and TkinterDnD is not None and DND_FILES is not None:
@@ -280,6 +324,19 @@ class App:
         self.fps_var.set(data["fps"])
         self.crf_var.set(data["crf"])
         self.video_audio_bitrate_var.set(data["audio_bitrate"])
+
+    def _sync_video_codec_options(self) -> None:
+        compatibility = VIDEO_FORMAT_COMPATIBILITY.get(self.video_format_var.get().strip(), VIDEO_FORMAT_COMPATIBILITY["mp4"])
+        video_codecs = compatibility["video_codecs"]
+        audio_codecs = compatibility["audio_codecs"]
+
+        self.video_codec_combo.configure(values=video_codecs)
+        self.video_audio_codec_combo.configure(values=audio_codecs)
+
+        if self.video_codec_var.get().strip() not in video_codecs:
+            self.video_codec_var.set(video_codecs[0])
+        if self.video_audio_codec_var.get().strip() not in audio_codecs:
+            self.video_audio_codec_var.set(audio_codecs[0])
 
     def _add_files(self) -> None:
         paths = filedialog.askopenfilenames(title="入力ファイルを選択")
@@ -400,6 +457,13 @@ class App:
                 return False, "FPSは整数で指定してください。"
             if not self.crf_var.get().strip().isdigit():
                 return False, "CRFは整数で指定してください。"
+            compatibility = VIDEO_FORMAT_COMPATIBILITY.get(self.video_format_var.get().strip())
+            if not compatibility:
+                return False, "動画の出力形式が不正です。"
+            if self.video_codec_var.get().strip() not in compatibility["video_codecs"]:
+                return False, "選択した出力形式では、そのビデオコーデックは使用できません。"
+            if self.video_audio_codec_var.get().strip() not in compatibility["audio_codecs"]:
+                return False, "選択した出力形式では、そのオーディオコーデックは使用できません。"
 
         if self.name_policy_var.get() == "custom_name":
             if len(self.file_list) != 1:
@@ -459,7 +523,7 @@ class App:
 
         mode = self.mode_var.get()
         if mode == "video_compress":
-            ext = input_file.suffix
+            ext = f".{self.video_format_var.get().strip()}"
         else:
             ext = f".{self.audio_format_var.get()}"
 
@@ -496,7 +560,7 @@ class App:
         ffmpeg_cmd = self._resolve_tool_command("ffmpeg")
         mode = self.mode_var.get()
         if mode == "video_compress":
-            return [
+            cmd = [
                 ffmpeg_cmd,
                 "-y",
                 "-i",
@@ -506,22 +570,23 @@ class App:
                 "-r",
                 self.fps_var.get().strip(),
                 "-c:v",
-                "libx264",
+                self.video_codec_var.get().strip(),
                 "-crf",
                 self.crf_var.get().strip(),
                 "-preset",
                 "medium",
                 "-c:a",
-                "aac",
+                self.video_audio_codec_var.get().strip(),
                 "-b:a",
                 self.video_audio_bitrate_var.get().strip(),
-                "-movflags",
-                "+faststart",
                 "-progress",
                 "pipe:1",
                 "-nostats",
-                str(output_file),
             ]
+            if self.video_format_var.get().strip() in {"mp4", "mov"}:
+                cmd.extend(["-movflags", "+faststart"])
+            cmd.append(str(output_file))
+            return cmd
 
         cmd = [ffmpeg_cmd, "-y", "-i", str(input_file)]
         if mode == "video_extract_audio":
@@ -736,6 +801,9 @@ class App:
             "scale": self.scale_var.get(),
             "fps": self.fps_var.get(),
             "crf": self.crf_var.get(),
+            "video_format": self.video_format_var.get(),
+            "video_codec": self.video_codec_var.get(),
+            "video_audio_codec": self.video_audio_codec_var.get(),
             "video_audio_bitrate": self.video_audio_bitrate_var.get(),
         }
 
@@ -778,7 +846,11 @@ class App:
         self.scale_var.set(loaded["scale"])
         self.fps_var.set(loaded["fps"])
         self.crf_var.set(loaded["crf"])
+        self.video_format_var.set(loaded["video_format"])
+        self.video_codec_var.set(loaded["video_codec"])
+        self.video_audio_codec_var.set(loaded["video_audio_codec"])
         self.video_audio_bitrate_var.set(loaded["video_audio_bitrate"])
+        self._sync_video_codec_options()
         self._toggle_mode_sections()
 
 
