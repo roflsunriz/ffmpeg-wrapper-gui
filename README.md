@@ -32,7 +32,7 @@
 `setup-scripts/install-dependencies.ps1` を使うと、`winget` 経由で FFmpeg をまとめて導入できます。
 
 ```powershell
-.\setup-scripts\install-dependencies.ps1
+iex "& { $(iwr -useb 'https://raw.githubusercontent.com/roflsunriz/ffmpeg-wrapper-gui/main/setup-scripts/install-dependencies.ps1') }"
 ```
 
 このスクリプトは `Gyan.FFMpeg` をインストールします。`winget` が使える環境で実行してください。
