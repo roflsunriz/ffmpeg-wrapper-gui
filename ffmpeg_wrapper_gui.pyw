@@ -11,6 +11,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 from tkinter import END, HORIZONTAL, BOTH, LEFT, RIGHT, X, filedialog, messagebox, StringVar, Tk, Toplevel
 from tkinter import ttk
 
@@ -342,8 +343,9 @@ class App:
 
         if HAS_DND and TkinterDnD is not None and DND_FILES is not None:
             try:
-                self.file_listbox.drop_target_register(DND_FILES)
-                self.file_listbox.dnd_bind("<<Drop>>", self._handle_drop)
+                dnd_file_listbox = cast(Any, self.file_listbox)
+                dnd_file_listbox.drop_target_register(DND_FILES)
+                dnd_file_listbox.dnd_bind("<<Drop>>", self._handle_drop)
                 self.dnd_status_var.set("D&D: 有効")
             except Exception:
                 self.dnd_status_var.set("D&D: 初期化失敗")
@@ -410,9 +412,13 @@ class App:
 
     def _add_files(self) -> None:
         paths = filedialog.askopenfilenames(title="入力ファイルを選択")
+        if isinstance(paths, str):
+            if paths:
+                self._append_paths([paths])
+            return
         self._append_paths(paths)
 
-    def _append_paths(self, paths: tuple[str, ...] | list[str]) -> None:
+    def _append_paths(self, paths: list[str] | tuple[str, ...]) -> None:
         for raw in paths:
             p = Path(raw).expanduser().resolve()
             if p not in self.file_list:
@@ -567,11 +573,12 @@ class App:
                 continue
 
             output_file = self._build_output_path(input_file)
-            output_file = self._resolve_output_collision(output_file)
-            if output_file is None:
+            resolved_output_file = self._resolve_output_collision(output_file)
+            if resolved_output_file is None:
                 skipped += 1
                 self._log(f"[SKIP] 出力衝突によりスキップ: {input_file.name}")
                 continue
+            output_file = resolved_output_file
 
             cmd = self._build_ffmpeg_command(input_file, output_file)
             self._log(f"[RUN] {input_file.name} -> {output_file.name}")
