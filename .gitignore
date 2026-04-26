@@ -4,3 +4,9 @@
 
 # 設定ファイル
 ffmpeg-wrapper-settings.json
+
+# Claw Code files
+.clawd-todos.json
+.claw/
+.sandbox-home/
+.sandbox-tmp/
