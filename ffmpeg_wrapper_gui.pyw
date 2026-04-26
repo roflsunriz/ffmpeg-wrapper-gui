@@ -16,7 +16,7 @@ from tkinter import END, HORIZONTAL, BOTH, LEFT, RIGHT, X, filedialog, messagebo
 from tkinter import ttk
 
 try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD  # type: ignore
+    from tkinterdnd2 import DND_FILES, TkinterDnD  # type: ignore[import]
 
     HAS_DND = True
 except Exception:
@@ -31,8 +31,24 @@ def get_app_base_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def get_settings_path() -> Path:
+    """設定ファイルのパスを取得する
+    
+    設定ファイルは $env:USERPROFILE\\mini-tools\\ffmpeg-wrapper-gui\\settings.json に保存されます
+    """
+    user_profile = os.environ.get("USERPROFILE")
+    if not user_profile:
+        # USERPROFILE 環境変数が存在しない場合は現在のアプリケーションディレクトリを使用
+        return get_app_base_dir() / "ffmpeg-wrapper-settings.json"
+    
+    mini_tools_dir = Path(user_profile) / "mini-tools" / "ffmpeg-wrapper-gui"
+    mini_tools_dir.mkdir(parents=True, exist_ok=True)
+    return mini_tools_dir / "settings.json"
+
+
 APP_BASE_DIR = get_app_base_dir()
-SETTINGS_PATH = APP_BASE_DIR / "ffmpeg-wrapper-settings.json"
+SETTINGS_PATH = get_settings_path()
+APP_VERSION = "1.0.4"
 
 AUDIO_FORMATS = ("mp3", "m4a", "flac", "wav", "ogg", "opus")
 AUDIO_CODECS = ("aac", "libmp3lame", "libopus", "pcm_s16le")
@@ -162,7 +178,7 @@ class OverwriteResolver:
 class App:
     def __init__(self, root: Tk) -> None:
         self.root = root
-        self.root.title("ffmpeg Wrapper GUI")
+        self.root.title(f"ffmpeg Wrapper GUI v{APP_VERSION}")
         self.root.geometry("980x760")
         self.root.minsize(980, 760)
 
@@ -460,7 +476,7 @@ class App:
         data = getattr(event, "data", "")
         if not isinstance(data, str) or not data:
             return
-        paths = self.root.tk.splitlist(data)
+        paths = self.root.tk.splitlist(data)  # type: ignore[no-untyped-call]
         normalized = [p.strip("{}") for p in paths]
         self._append_paths(normalized)
 
