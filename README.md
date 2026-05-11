@@ -1,3 +1,5 @@
+![main](./gallery/main.png)
+
 # ffmpeg Wrapper GUI
 
 `ffmpeg` を GUI から操作する Windows 向けの軽量ツールです。音声変換、動画から音声抽出、動画圧縮をまとめて扱えます。
