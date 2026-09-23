@@ -29,7 +29,7 @@ jobs:
         run: pyinstaller .\ffmpeg-wrapper-gui.spec --noconfirm --clean
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ffmpeg-wrapper-gui-windows
           path: dist/ffmpeg-wrapper-gui.exe
