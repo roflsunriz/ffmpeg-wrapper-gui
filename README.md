@@ -50,19 +50,12 @@ iex "& { $(iwr -useb 'https://raw.githubusercontent.com/roflsunriz/ffmpeg-wrappe
 
 ## 配布版の作成
 
-PyInstaller の spec ファイルを使って exe を作成します。
-
-```powershell
-pyinstaller .\ffmpeg-wrapper-gui.spec --noconfirm --clean
-```
-
-生成物は `dist\ffmpeg-wrapper-gui.exe` です。
+詳細は [findings.md](findings.md#readme-1) に移しました。
 
 ## 開発メモ
 
-- メイン実装: [`ffmpeg_wrapper_gui.pyw`](./ffmpeg_wrapper_gui.pyw)
-- PyInstaller 設定: [`ffmpeg-wrapper-gui.spec`](./ffmpeg-wrapper-gui.spec)
+詳細は [findings.md](findings.md#readme-2) に移しました。
 
 ## 依存更新の自動処理
 
-Dependabot は対象の依存関係を毎週確認します。patch／minor 更新は PR のチェック（CI）が成功した後に自動で squash merge されます。CI の失敗ジョブは 1 回だけ再実行します。再失敗した PR は残して手動で修正します。major 更新は手動で確認します。
+詳細は [findings.md](findings.md#readme-3) に移しました。
