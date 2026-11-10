@@ -50,12 +50,21 @@ iex "& { $(iwr -useb 'https://raw.githubusercontent.com/roflsunriz/ffmpeg-wrappe
 
 ## 配布版の作成
 
-詳細は [findings.md](findings.md#readme-1) に移しました。
+PyInstaller の spec ファイルを使って exe を作成します。
+
+```powershell
+pyinstaller .\ffmpeg-wrapper-gui.spec --noconfirm --clean
+```
+
+生成物は `dist\ffmpeg-wrapper-gui.exe` です。
 
 ## 開発メモ
 
-詳細は [findings.md](findings.md#readme-2) に移しました。
+- メイン実装: [`ffmpeg_wrapper_gui.pyw`](./ffmpeg_wrapper_gui.pyw)
+- PyInstaller 設定: [`ffmpeg-wrapper-gui.spec`](./ffmpeg-wrapper-gui.spec)
 
 ## 依存更新の自動処理
 
-詳細は [findings.md](findings.md#readme-3) に移しました。
+更新PRの取り込みは、必要なCIチェックにすべて成功したものだけを対象に、毎月28日18:00（Asia/Tokyo）の月末処理で行います。
+
+Dependabot は対象の依存関係を毎月28日00:00（Asia/Tokyo）に確認します。patch／minor 更新は PR のチェック（CI）が成功した後に自動で squash merge されます。CI の失敗ジョブは 1 回だけ再実行します。再失敗した PR は残して手動で修正します。major 更新も互換性を確認し、同じ月末処理で取り込みます。
